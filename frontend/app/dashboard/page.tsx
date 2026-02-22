@@ -10,7 +10,7 @@ import {
   SparklesIcon,
   ClockIcon,
 } from "@heroicons/react/24/outline";
-import { AuthGuard } from "@/components/layout/AuthGuard";
+import AuthGuard from "@/components/layout/AuthGuard";
 import { Navbar } from "@/components/layout/Navbar";
 import { useAuthStore } from "@/lib/store";
 import { authApi, generationsApi } from "@/lib/api";

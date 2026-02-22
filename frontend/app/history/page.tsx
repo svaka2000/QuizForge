@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { AuthGuard } from "@/components/layout/AuthGuard";
+import AuthGuard from "@/components/layout/AuthGuard";
 import { Navbar } from "@/components/layout/Navbar";
 import { generationsApi } from "@/lib/api";
 import type { GenerationListItem } from "@/lib/types";

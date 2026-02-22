@@ -1,29 +1,29 @@
 "use client";
-import { useEffect } from "react";
+
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
 
-export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, hydrate } = useAuthStore();
+export default function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { hydrate } = useAuthStore();
   const router = useRouter();
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
     hydrate();
-  }, [hydrate]);
-
-  useEffect(() => {
-    if (!useAuthStore.getState().token) {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("qf_token") : null;
+    if (!token) {
       router.replace("/login");
+    } else {
+      setChecked(true);
     }
-  }, [router]);
+  }, [hydrate, router]);
 
-  if (!user) {
+  if (!checked) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-slate-500">Loading...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }

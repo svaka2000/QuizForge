@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Date
+from sqlalchemy import func
 from datetime import date, datetime, timezone
 from typing import Optional
 from app.models.user import User, UserTier
@@ -37,12 +37,12 @@ class UserRepository:
         return user
 
     def get_generations_today(self, user_id: int) -> int:
-        today = date.today()
+        today = str(date.today())
         return (
             self.db.query(Generation)
             .filter(
                 Generation.user_id == user_id,
-                cast(Generation.created_at, Date) == today,
+                func.date(Generation.created_at) == today,
             )
             .count()
         )
@@ -60,3 +60,6 @@ class UserRepository:
 
     def count_total(self) -> int:
         return self.db.query(User).count()
+
+    def count_by_tier(self, tier: UserTier) -> int:
+        return self.db.query(User).filter(User.tier == tier).count()

@@ -1,4 +1,5 @@
-import logging
+import os
+import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -7,16 +8,15 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-import os
+import logging
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.routers import auth_router, generations_router, admin_router
+from app.core.logging import configure_logging
+from app.routers import auth_router, generations_router, admin_router, billing_router
 
-logging.basicConfig(
-    level=logging.DEBUG if settings.DEBUG else logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
+# Configure logging before anything else
+configure_logging(environment=settings.ENVIRONMENT, debug=settings.DEBUG)
 logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
@@ -50,7 +50,6 @@ def _seed_admin():
                 hashed_password=hash_password("AdminPass123!"),
                 full_name="QuizForge Admin",
             )
-            from sqlalchemy.orm import Session
             repo.update(user, is_admin=True, tier=UserTier.PRO)
             logger.info(f"Created admin user: {settings.ADMIN_EMAIL}")
     finally:
@@ -77,10 +76,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ---------------------------------------------------------------------------
+# Request ID middleware — attaches X-Request-ID to every request/response
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Request logging middleware — structured log per request
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    import time
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+    request_id = getattr(request.state, "request_id", "-")
+    logger.info(
+        "%s %s %s %.1fms rid=%s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+        request_id,
+    )
+    return response
+
+
 # Routers
 app.include_router(auth_router)
 app.include_router(generations_router)
 app.include_router(admin_router)
+app.include_router(billing_router)
 
 # Serve PDFs
 pdf_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "pdfs")
@@ -102,7 +136,10 @@ def health_check():
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    request_id = getattr(request.state, "request_id", "-")
+    logger.error(
+        "Unhandled exception rid=%s: %s", request_id, exc, exc_info=True
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "An internal error occurred"},
