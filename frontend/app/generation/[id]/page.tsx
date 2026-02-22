@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import AuthGuard from "@/components/layout/AuthGuard";
 import { Navbar } from "@/components/layout/Navbar";
 import { generationsApi } from "@/lib/api";
-import type { Generation, Question } from "@/lib/types";
+import { PrintPreview } from "@/components/quiz/PrintPreview";
+import type { Generation, Question, GenerationPreview, PreviewVersion } from "@/lib/types";
 import {
   ArrowDownTrayIcon,
   ArrowLeftIcon,
@@ -15,6 +16,9 @@ import {
   SparklesIcon,
   ShareIcon,
   ArrowPathIcon,
+  EyeIcon,
+  XMarkIcon,
+  PrinterIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import clsx from "clsx";
@@ -31,6 +35,12 @@ export default function GenerationDetailPage() {
   const [activeTab, setActiveTab] = useState<QuestionTab>("version_a");
   const [showAll, setShowAll] = useState(false);
 
+  // Preview modal state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<GenerationPreview | null>(null);
+  const [previewVersion, setPreviewVersion] = useState<PreviewVersion>("A");
+  const [showAnswers, setShowAnswers] = useState(false);
+
   useEffect(() => {
     generationsApi
       .get(Number(id))
@@ -41,6 +51,19 @@ export default function GenerationDetailPage() {
       })
       .finally(() => setLoading(false));
   }, [id, router]);
+
+  const openPreview = async () => {
+    if (!previewData) {
+      try {
+        const data = await generationsApi.preview(Number(id));
+        setPreviewData(data);
+      } catch {
+        toast.error("Could not load preview");
+        return;
+      }
+    }
+    setPreviewOpen(true);
+  };
 
   const downloadPDF = async (
     type: "version_a" | "version_b" | "answer_key",
@@ -75,7 +98,6 @@ export default function GenerationDetailPage() {
 
   const handleRegenerate = () => {
     if (!generation) return;
-    // Navigate to generate page with pre-filled params via URL
     const params = new URLSearchParams({
       topic: generation.topic,
       subject: generation.subject,
@@ -92,18 +114,14 @@ export default function GenerationDetailPage() {
         <div className="min-h-screen bg-gray-50">
           <Navbar />
           <main className="max-w-4xl mx-auto px-4 py-8">
-            {/* Title skeleton */}
             <div className="h-8 w-64 bg-slate-200 rounded-lg animate-pulse mb-2" />
             <div className="h-4 w-40 bg-slate-100 rounded animate-pulse mb-6" />
-            {/* Download buttons skeleton */}
             <div className="flex gap-3 mb-8">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-10 w-32 bg-slate-200 rounded-lg animate-pulse" />
               ))}
             </div>
-            {/* Tab skeleton */}
             <div className="h-10 w-64 bg-slate-200 rounded-lg animate-pulse mb-6" />
-            {/* Question card skeletons */}
             <div className="space-y-4">
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="card">
@@ -130,6 +148,36 @@ export default function GenerationDetailPage() {
     ? activeQuestions
     : activeQuestions.slice(0, 5);
 
+  const PDF_CARDS = [
+    {
+      type: "version_a" as const,
+      label: "Version A",
+      desc: "Student worksheet — Version A",
+      color: "bg-blue-50 border-blue-200",
+      textColor: "text-blue-700",
+      btnClass: "bg-blue-600 hover:bg-blue-700",
+      previewVersion: "A" as PreviewVersion,
+    },
+    {
+      type: "version_b" as const,
+      label: "Version B",
+      desc: "Student worksheet — Version B",
+      color: "bg-purple-50 border-purple-200",
+      textColor: "text-purple-700",
+      btnClass: "bg-purple-600 hover:bg-purple-700",
+      previewVersion: "B" as PreviewVersion,
+    },
+    {
+      type: "answer_key" as const,
+      label: "Answer Key",
+      desc: "Teacher use only",
+      color: "bg-green-50 border-green-200",
+      textColor: "text-green-700",
+      btnClass: "bg-green-600 hover:bg-green-700",
+      previewVersion: "answer_key" as PreviewVersion,
+    },
+  ];
+
   return (
     <AuthGuard>
       <div className="min-h-screen bg-gray-50">
@@ -152,34 +200,17 @@ export default function GenerationDetailPage() {
                 </h1>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <span className="badge badge-blue">{generation.subject}</span>
-                  <span className="badge badge-gray">
-                    Grade {generation.grade_level}
-                  </span>
-                  <span className="badge badge-gray capitalize">
-                    {generation.difficulty}
-                  </span>
-                  <span className="badge badge-gray">
-                    {generation.question_count} questions
-                  </span>
+                  <span className="badge badge-gray">Grade {generation.grade_level}</span>
+                  <span className="badge badge-gray capitalize">{generation.difficulty}</span>
+                  <span className="badge badge-gray">{generation.question_count} questions</span>
                   {generation.generator_used && (
-                    <span
-                      className={clsx(
-                        "badge",
-                        generation.generator_used === "claude"
-                          ? "badge-blue"
-                          : "badge-gray"
-                      )}
-                    >
-                      {generation.generator_used === "claude"
-                        ? "⚡ AI Generated"
-                        : "📝 Mock"}
+                    <span className={clsx("badge", generation.generator_used === "claude" ? "badge-blue" : "badge-gray")}>
+                      {generation.generator_used === "claude" ? "⚡ AI Generated" : "📝 Mock"}
                     </span>
                   )}
                 </div>
                 {generation.standards && (
-                  <p className="text-xs text-gray-500 mt-2">
-                    Standards: {generation.standards}
-                  </p>
+                  <p className="text-xs text-gray-500 mt-2">Standards: {generation.standards}</p>
                 )}
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
@@ -196,17 +227,18 @@ export default function GenerationDetailPage() {
                 ) : (
                   <div className="flex items-center gap-1 text-yellow-600">
                     <ClockIcon className="w-5 h-5" />
-                    <span className="text-sm font-medium capitalize">
-                      {generation.status}
-                    </span>
+                    <span className="text-sm font-medium capitalize">{generation.status}</span>
                   </div>
                 )}
                 {generation.generation_time_seconds && (
+                  <p className="text-xs text-gray-400">Generated in {generation.generation_time_seconds}s</p>
+                )}
+                {generation.estimated_print_time && (
                   <p className="text-xs text-gray-400">
-                    Generated in {generation.generation_time_seconds}s
+                    <PrinterIcon className="w-3 h-3 inline mr-1" />
+                    {generation.estimated_print_time}
                   </p>
                 )}
-                {/* Action buttons */}
                 <div className="flex gap-2 mt-1">
                   <button
                     onClick={handleShare}
@@ -227,60 +259,41 @@ export default function GenerationDetailPage() {
             </div>
           </div>
 
-          {/* Download cards */}
+          {/* Download + Preview cards */}
           {isCompleted && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              {[
-                {
-                  type: "version_a" as const,
-                  label: "Version A",
-                  desc: "Student worksheet — Version A",
-                  color: "bg-blue-50 border-blue-200",
-                  textColor: "text-blue-700",
-                  btnClass: "bg-blue-600 hover:bg-blue-700",
-                },
-                {
-                  type: "version_b" as const,
-                  label: "Version B",
-                  desc: "Student worksheet — Version B",
-                  color: "bg-purple-50 border-purple-200",
-                  textColor: "text-purple-700",
-                  btnClass: "bg-purple-600 hover:bg-purple-700",
-                },
-                {
-                  type: "answer_key" as const,
-                  label: "Answer Key",
-                  desc: "Teacher use only",
-                  color: "bg-green-50 border-green-200",
-                  textColor: "text-green-700",
-                  btnClass: "bg-green-600 hover:bg-green-700",
-                },
-              ].map((item) => (
+              {PDF_CARDS.map((item) => (
                 <div
                   key={item.type}
-                  className={clsx(
-                    "border rounded-xl p-5 flex flex-col gap-3",
-                    item.color
-                  )}
+                  className={clsx("border rounded-xl p-5 flex flex-col gap-3", item.color)}
                 >
                   <div>
-                    <p className={clsx("font-semibold text-lg", item.textColor)}>
-                      {item.label}
-                    </p>
+                    <p className={clsx("font-semibold text-lg", item.textColor)}>{item.label}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
                   </div>
-                  <button
-                    onClick={() =>
-                      downloadPDF(item.type, item.label.replace(" ", "_"))
-                    }
-                    className={clsx(
-                      "flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-white text-sm font-semibold transition-colors",
-                      item.btnClass
-                    )}
-                  >
-                    <ArrowDownTrayIcon className="w-4 h-4" />
-                    Download PDF
-                  </button>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => downloadPDF(item.type, item.label.replace(" ", "_"))}
+                      className={clsx(
+                        "flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-white text-sm font-semibold transition-colors",
+                        item.btnClass
+                      )}
+                    >
+                      <ArrowDownTrayIcon className="w-4 h-4" />
+                      Download PDF
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPreviewVersion(item.previewVersion);
+                        setShowAnswers(item.type === "answer_key");
+                        openPreview();
+                      }}
+                      className="flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-current text-sm font-medium transition-colors hover:bg-white/60"
+                    >
+                      <EyeIcon className="w-4 h-4" />
+                      Preview
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -293,10 +306,7 @@ export default function GenerationDetailPage() {
                 <ExclamationTriangleIcon className="w-5 h-5 text-red-500 shrink-0" />
                 <div>
                   <p className="font-medium text-red-800">Generation Failed</p>
-                  <p className="text-sm text-red-600 mt-1">
-                    An error occurred while generating your quiz. Please try
-                    again.
-                  </p>
+                  <p className="text-sm text-red-600 mt-1">An error occurred while generating your quiz. Please try again.</p>
                 </div>
               </div>
             </div>
@@ -332,17 +342,12 @@ export default function GenerationDetailPage() {
               </div>
               <div className="space-y-5">
                 {displayedQuestions.map((q, idx) => (
-                  <div
-                    key={q.id}
-                    className="border-l-4 border-indigo-200 pl-4"
-                  >
+                  <div key={q.id} className="border-l-4 border-indigo-200 pl-4">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-semibold text-gray-900">
                         {idx + 1}. {q.question}
                       </p>
-                      <span className="badge badge-gray shrink-0 text-xs">
-                        {q.points} pts
-                      </span>
+                      <span className="badge badge-gray shrink-0 text-xs">{q.points} pts</span>
                     </div>
                     {q.type === "multiple_choice" && q.options && (
                       <ul className="mt-2 space-y-1">
@@ -364,9 +369,7 @@ export default function GenerationDetailPage() {
                     )}
                     {q.type !== "multiple_choice" && (
                       <p className="text-xs text-gray-500 mt-1 italic">
-                        Answer:{" "}
-                        {q.correct_answer.slice(0, 150)}
-                        {q.correct_answer.length > 150 ? "..." : ""}
+                        Answer: {q.correct_answer.slice(0, 150)}{q.correct_answer.length > 150 ? "..." : ""}
                       </p>
                     )}
                   </div>
@@ -377,15 +380,80 @@ export default function GenerationDetailPage() {
                   onClick={() => setShowAll((prev) => !prev)}
                   className="mt-4 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
                 >
-                  {showAll
-                    ? "Show less"
-                    : `Show all ${activeQuestions.length} questions`}
+                  {showAll ? "Show less" : `Show all ${activeQuestions.length} questions`}
                 </button>
               )}
             </div>
           )}
         </main>
       </div>
+
+      {/* Print Preview Modal */}
+      {previewOpen && previewData && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-gray-900/80">
+          {/* Modal toolbar */}
+          <div className="no-print flex items-center justify-between bg-white border-b border-gray-200 px-4 py-3 shrink-0">
+            <div className="flex items-center gap-2">
+              {/* Version tabs */}
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                {(["A", "B", "answer_key"] as PreviewVersion[]).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => {
+                      setPreviewVersion(v);
+                      if (v !== "answer_key") setShowAnswers(false);
+                    }}
+                    className={clsx(
+                      "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                      previewVersion === v
+                        ? "bg-white text-gray-900 shadow"
+                        : "text-gray-500 hover:text-gray-700"
+                    )}
+                  >
+                    {v === "answer_key" ? "Answer Key" : `Version ${v}`}
+                  </button>
+                ))}
+              </div>
+              {/* Show answers toggle (only on Answer Key) */}
+              {previewVersion === "answer_key" && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer ml-2">
+                  <input
+                    type="checkbox"
+                    checked={showAnswers}
+                    onChange={(e) => setShowAnswers(e.target.checked)}
+                    className="rounded"
+                  />
+                  Show Answers
+                </label>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+              >
+                <PrinterIcon className="w-4 h-4" />
+                Print This Version
+              </button>
+              <button
+                onClick={() => setPreviewOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                aria-label="Close preview"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          {/* Scrollable preview area */}
+          <div className="flex-1 overflow-y-auto p-6 bg-gray-100">
+            <PrintPreview
+              generation={previewData}
+              version={previewVersion}
+              showAnswers={showAnswers}
+            />
+          </div>
+        </div>
+      )}
     </AuthGuard>
   );
 }

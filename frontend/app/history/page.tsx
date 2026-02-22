@@ -11,6 +11,9 @@ import {
   TrashIcon,
   MagnifyingGlassIcon,
   PlusCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 import toast from "react-hot-toast";
 import clsx from "clsx";
@@ -26,19 +29,28 @@ export default function HistoryPage() {
   const [generations, setGenerations] = useState<GenerationListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [historyLimited, setHistoryLimited] = useState(false);
+  const limit = 25;
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (p: number) => {
+    setLoading(true);
     try {
-      const data = await generationsApi.list(0, 100);
-      setGenerations(data);
+      const resp = await generationsApi.list(p, limit);
+      setGenerations(resp.data.items);
+      setTotalPages(resp.data.pages);
+      setTotal(resp.data.total);
+      setHistoryLimited(resp.headers?.["x-history-limited"] === "true");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+    fetchHistory(page);
+  }, [fetchHistory, page]);
 
   const handleDelete = async (id: number, e: React.MouseEvent) => {
     e.preventDefault();
@@ -46,6 +58,7 @@ export default function HistoryPage() {
     try {
       await generationsApi.delete(id);
       setGenerations((prev) => prev.filter((g) => g.id !== id));
+      setTotal((prev) => prev - 1);
       toast.success("Deleted");
     } catch {
       toast.error("Failed to delete");
@@ -68,7 +81,7 @@ export default function HistoryPage() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Generation History</h1>
               <p className="text-slate-500 text-sm mt-1">
-                {generations.length} total generations
+                {total} total generation{total !== 1 ? "s" : ""}
               </p>
             </div>
             <Link href="/generate" className="btn-primary">
@@ -76,6 +89,20 @@ export default function HistoryPage() {
               New Quiz
             </Link>
           </div>
+
+          {/* Free tier banner */}
+          {historyLimited && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <SparklesIcon className="w-5 h-5 text-amber-500 shrink-0" />
+              <p className="text-sm text-amber-800">
+                Showing your last 10 quizzes.{" "}
+                <Link href="/upgrade" className="font-semibold underline hover:text-amber-900">
+                  Upgrade to Pro
+                </Link>{" "}
+                to see your full history.
+              </p>
+            </div>
+          )}
 
           {/* Search */}
           <div className="relative mb-4">
@@ -166,6 +193,29 @@ export default function HistoryPage() {
               </div>
             )}
           </div>
+
+          {/* Pagination */}
+          {!loading && totalPages > 1 && !search && (
+            <div className="flex items-center justify-between mt-4">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeftIcon className="w-4 h-4" /> Previous
+              </button>
+              <span className="text-sm text-slate-500">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next <ChevronRightIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </main>
       </div>
     </AuthGuard>

@@ -15,7 +15,10 @@
       "Bash(git reset:*)",
       "Bash(git rm:*)",
       "Bash(git commit:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(python -m alembic revision:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(python -m alembic upgrade:*)"
     ]
   }
 }

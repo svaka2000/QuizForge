@@ -53,6 +53,8 @@ class Generation(Base):
     generator_used = Column(String, nullable=True)  # "mock" or "claude"
     error_message = Column(Text, nullable=True)
     generation_time_seconds = Column(Float, nullable=True)
+    estimated_print_time = Column(String, nullable=True)
+    is_deleted = Column(Boolean, default=False, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

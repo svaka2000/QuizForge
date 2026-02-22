@@ -1,12 +1,18 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.services.generation_service import GenerationService
-from app.schemas.generation import GenerationRequest, GenerationResponse, GenerationListItem
-from app.models.user import User
+from app.schemas.generation import (
+    GenerationRequest,
+    GenerationResponse,
+    GenerationListItem,
+    GenerationPreviewResponse,
+    PaginatedGenerationsResponse,
+)
+from app.models.user import User, UserTier
 from typing import List
 
 router = APIRouter(prefix="/api/generations", tags=["generations"])
@@ -24,15 +30,35 @@ def create_generation(
     return service.create_generation(current_user, request)
 
 
-@router.get("", response_model=List[GenerationListItem])
+@router.get("", response_model=PaginatedGenerationsResponse)
 def list_generations(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1),
+    limit: int = Query(25, ge=1, le=100),
+    response: Response = None,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     service = GenerationService(db)
-    return service.list_generations(current_user, skip=skip, limit=limit)
+    # Free tier: cap at 10 most recent regardless of requested limit
+    history_limited = False
+    if current_user.tier == UserTier.FREE and limit > 10:
+        limit = 10
+        history_limited = True
+    result = service.list_generations_paginated(current_user, page=page, limit=limit)
+    if history_limited and response is not None:
+        response.headers["X-History-Limited"] = "true"
+    return result
+
+
+@router.get("/{generation_id}/preview", response_model=GenerationPreviewResponse)
+def get_generation_preview(
+    generation_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Return questions and answer key for in-browser print preview."""
+    service = GenerationService(db)
+    return service.get_generation(generation_id, current_user)
 
 
 @router.get("/{generation_id}", response_model=GenerationResponse)
@@ -52,7 +78,7 @@ def delete_generation(
     db: Session = Depends(get_db),
 ):
     service = GenerationService(db)
-    service.delete_generation(generation_id, current_user)
+    service.soft_delete_generation(generation_id, current_user)
 
 
 @router.get("/{generation_id}/download/{file_type}")

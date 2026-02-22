@@ -83,6 +83,7 @@ def list_all_generations(
             "question_count": g.question_count,
             "status": g.status,
             "generator_used": g.generator_used,
+            "is_deleted": g.is_deleted,
             "created_at": g.created_at,
         }
         for g in generations

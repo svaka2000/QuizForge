@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from app.models.generation import DifficultyLevel, GenerationStatus
 
 
@@ -47,6 +47,7 @@ class GenerationResponse(BaseModel):
     pdf_version_b: Optional[str]
     pdf_answer_key: Optional[str]
     generation_time_seconds: Optional[float]
+    estimated_print_time: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -63,6 +64,32 @@ class GenerationListItem(BaseModel):
     status: GenerationStatus
     generator_used: Optional[str]
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PaginatedGenerationsResponse(BaseModel):
+    items: List[GenerationListItem]
+    total: int
+    page: int
+    pages: int
+    limit: int
+
+
+class GenerationPreviewResponse(BaseModel):
+    """Lightweight response for the in-browser print preview."""
+    id: int
+    topic: str
+    subject: str
+    grade_level: str
+    standards: Optional[str]
+    difficulty: DifficultyLevel
+    question_count: int
+    points_per_question: int
+    questions_a: Optional[List[Any]] = None
+    questions_b: Optional[List[Any]] = None
+    answer_key: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True

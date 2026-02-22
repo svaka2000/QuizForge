@@ -23,6 +23,12 @@ def _daily_limit(tier: UserTier) -> int:
     return settings.PRO_TIER_DAILY_LIMIT
 
 
+def _estimated_print_time(question_count: int) -> str:
+    """Rough estimate: ~30 sec per question to print, collate, and distribute."""
+    minutes = max(1, round(question_count * 0.5))
+    return f"~{minutes} min to print and distribute"
+
+
 class GenerationService:
     def __init__(self, db: Session):
         self.db = db
@@ -96,6 +102,7 @@ class GenerationService:
                 title, request.subject, request.grade_level, request.topic
             )
 
+            actual_count = len(q_a_dicts)
             self.gen_repo.update(
                 generation,
                 status=GenerationStatus.COMPLETED,
@@ -107,6 +114,8 @@ class GenerationService:
                 pdf_answer_key=pdf_key,
                 generator_used=result.generator,
                 generation_time_seconds=elapsed,
+                question_count=actual_count,
+                estimated_print_time=_estimated_print_time(actual_count),
             )
 
             self.user_repo.log_usage(user.id, "generate", generation.id)
@@ -139,6 +148,24 @@ class GenerationService:
     def list_generations(self, user: User, skip: int = 0, limit: int = 20):
         return self.gen_repo.get_by_user(user.id, skip=skip, limit=limit)
 
+    def list_generations_paginated(self, user: User, page: int = 1, limit: int = 25) -> dict:
+        skip = (page - 1) * limit
+        items = self.gen_repo.get_by_user(user.id, skip=skip, limit=limit)
+        total = self.gen_repo.count_by_user_non_deleted(user.id)
+        import math
+        pages = math.ceil(total / limit) if limit > 0 else 1
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "pages": max(1, pages),
+            "limit": limit,
+        }
+
     def delete_generation(self, generation_id: int, user: User):
         gen = self.get_generation(generation_id, user)
         self.gen_repo.delete(gen)
+
+    def soft_delete_generation(self, generation_id: int, user: User):
+        gen = self.get_generation(generation_id, user)
+        self.gen_repo.soft_delete(gen)

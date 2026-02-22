@@ -17,16 +17,27 @@ class GenerationRepository:
         return generation
 
     def get_by_id(self, generation_id: int) -> Optional[Generation]:
-        return self.db.query(Generation).filter(Generation.id == generation_id).first()
+        return (
+            self.db.query(Generation)
+            .filter(Generation.id == generation_id, Generation.is_deleted == False)
+            .first()
+        )
 
     def get_by_user(self, user_id: int, skip: int = 0, limit: int = 50) -> List[Generation]:
         return (
             self.db.query(Generation)
-            .filter(Generation.user_id == user_id)
+            .filter(Generation.user_id == user_id, Generation.is_deleted == False)
             .order_by(Generation.created_at.desc())
             .offset(skip)
             .limit(limit)
             .all()
+        )
+
+    def count_by_user_non_deleted(self, user_id: int) -> int:
+        return (
+            self.db.query(Generation)
+            .filter(Generation.user_id == user_id, Generation.is_deleted == False)
+            .count()
         )
 
     def update(self, generation: Generation, **kwargs) -> Generation:
@@ -40,7 +51,12 @@ class GenerationRepository:
         self.db.delete(generation)
         self.db.commit()
 
+    def soft_delete(self, generation: Generation):
+        generation.is_deleted = True
+        self.db.commit()
+
     def list_all(self, skip: int = 0, limit: int = 100) -> List[Generation]:
+        """Admin: includes soft-deleted records."""
         return (
             self.db.query(Generation)
             .order_by(Generation.created_at.desc())
@@ -50,13 +66,15 @@ class GenerationRepository:
         )
 
     def count_total(self) -> int:
-        return self.db.query(Generation).count()
+        """Admin: counts non-deleted generations."""
+        return self.db.query(Generation).filter(Generation.is_deleted == False).count()
 
     def get_count_by_day(self, days: int = 30) -> List[dict]:
         """Return generation counts per day for the last N days."""
         day_col = func.date(Generation.created_at).label("day")
         rows = (
             self.db.query(day_col, func.count(Generation.id).label("count"))
+            .filter(Generation.is_deleted == False)
             .group_by(func.date(Generation.created_at))
             .order_by(func.date(Generation.created_at))
             .limit(days)
@@ -71,6 +89,7 @@ class GenerationRepository:
                 Generation.subject,
                 func.count(Generation.id).label("count"),
             )
+            .filter(Generation.is_deleted == False)
             .group_by(Generation.subject)
             .order_by(func.count(Generation.id).desc())
             .limit(limit)
@@ -81,7 +100,7 @@ class GenerationRepository:
     def get_count_by_user(self, user_id: int) -> int:
         return (
             self.db.query(Generation)
-            .filter(Generation.user_id == user_id)
+            .filter(Generation.user_id == user_id, Generation.is_deleted == False)
             .count()
         )
 
@@ -89,6 +108,6 @@ class GenerationRepository:
         today = str(date.today())
         return (
             self.db.query(Generation)
-            .filter(func.date(Generation.created_at) == today)
+            .filter(func.date(Generation.created_at) == today, Generation.is_deleted == False)
             .count()
         )
