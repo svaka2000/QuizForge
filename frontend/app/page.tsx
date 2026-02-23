@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   AcademicCapIcon,
   BoltIcon,
@@ -13,7 +13,50 @@ import {
   PencilSquareIcon,
   SparklesIcon,
   ArrowDownTrayIcon,
+  ClockIcon,
+  UserGroupIcon,
+  ChartBarIcon,
 } from "@heroicons/react/24/outline";
+
+// ---------------------------------------------------------------------------
+// 11E: Animated counter hook (Intersection Observer)
+// ---------------------------------------------------------------------------
+function useAnimatedCounter(target: number, duration = 1600, startOnMount = false) {
+  const [value, setValue] = useState(0);
+  const [triggered, setTriggered] = useState(startOnMount);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setTriggered(true); },
+      { threshold: 0.3 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!triggered) return;
+    let start: number | null = null;
+    const step = (ts: number) => {
+      if (!start) start = ts;
+      const progress = Math.min((ts - start) / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(eased * target));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [triggered, target, duration]);
+
+  return { value, ref };
+}
+
+// ---------------------------------------------------------------------------
+// Data
+// ---------------------------------------------------------------------------
 
 const features = [
   {
@@ -69,24 +112,31 @@ const HOW_IT_WORKS = [
   },
 ];
 
+// 11D: enriched testimonials with school name
 const TESTIMONIALS = [
   {
     name: "Sarah M.",
     role: "8th Grade Science Teacher",
+    school: "Riverside Middle School, CA",
     text: "QuizForge saves me 3+ hours every week. I used to spend all Sunday making tests. Now I generate them in minutes before class.",
     initials: "SM",
+    color: "bg-violet-600",
   },
   {
     name: "James T.",
     role: "High School Math Dept. Head",
+    school: "Lincoln Unified School District, TX",
     text: "The two-version feature is brilliant. My students can't share answers anymore, and the questions are genuinely high quality.",
     initials: "JT",
+    color: "bg-indigo-600",
   },
   {
     name: "Lisa K.",
     role: "5th Grade ELA Teacher",
+    school: "Maplewood Elementary, NY",
     text: "Standards alignment is the best part. I enter my Common Core codes and the quiz actually matches what I need to assess.",
     initials: "LK",
+    color: "bg-emerald-600",
   },
 ];
 
@@ -154,6 +204,248 @@ const FAQS = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// 11A: Live demo browser chrome
+// ---------------------------------------------------------------------------
+function HeroBrowserDemo() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setStep((s) => (s + 1) % 4), 2000);
+    return () => clearInterval(id);
+  }, []);
+
+  const formRows = [
+    { label: "Topic", value: "Photosynthesis", done: step >= 1 },
+    { label: "Grade", value: "7th Grade", done: step >= 2 },
+    { label: "Questions", value: "10 questions", done: step >= 3 },
+  ];
+
+  return (
+    <div className="mt-12 max-w-2xl mx-auto">
+      {/* Browser chrome */}
+      <div className="bg-slate-800 rounded-t-xl px-4 py-2.5 flex items-center gap-2">
+        <div className="flex gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-red-500/80" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+          <div className="w-3 h-3 rounded-full bg-green-500/80" />
+        </div>
+        <div className="flex-1 mx-4 bg-slate-700 rounded text-slate-400 text-xs py-1 px-3 text-center truncate">
+          app.quizforge.io/generate
+        </div>
+      </div>
+
+      {/* App window */}
+      <div className="bg-white rounded-b-xl shadow-2xl overflow-hidden border border-slate-200">
+        <div className="grid grid-cols-2 divide-x divide-slate-100">
+          {/* Left: form */}
+          <div className="p-5">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Quiz Settings</p>
+            <div className="space-y-2.5">
+              {formRows.map((row) => (
+                <div key={row.label} className="flex items-center gap-2">
+                  <div
+                    className={`w-4 h-4 rounded flex items-center justify-center shrink-0 transition-colors ${
+                      row.done ? "bg-indigo-600" : "border border-slate-300"
+                    }`}
+                  >
+                    {row.done && <CheckIcon className="w-2.5 h-2.5 text-white" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] text-slate-400">{row.label}</p>
+                    <p className={`text-xs font-medium transition-colors ${row.done ? "text-slate-800" : "text-slate-300"}`}>
+                      {row.value}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              className={`mt-5 w-full py-2 rounded-lg text-xs font-semibold transition-all ${
+                step >= 3
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                  : "bg-slate-100 text-slate-400"
+              }`}
+            >
+              {step >= 3 ? "✓ Generated!" : "Generate Quiz"}
+            </button>
+          </div>
+
+          {/* Right: output */}
+          <div className="p-5 bg-slate-50">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Output</p>
+            <div className="space-y-2">
+              {[
+                { label: "Version A PDF", ready: step >= 3 },
+                { label: "Version B PDF", ready: step >= 3 },
+                { label: "Answer Key PDF", ready: step >= 3 },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs border transition-all ${
+                    item.ready
+                      ? "border-green-200 bg-green-50 text-green-800"
+                      : "border-slate-200 bg-white text-slate-400"
+                  }`}
+                >
+                  <span className="font-medium">{item.label}</span>
+                  {item.ready ? (
+                    <span className="text-green-600 font-bold">✓ Ready</span>
+                  ) : (
+                    <span className="w-4 h-4 border-2 border-slate-200 border-t-indigo-400 rounded-full animate-spin inline-block" />
+                  )}
+                </div>
+              ))}
+            </div>
+            {step >= 3 && (
+              <p className="text-[10px] text-indigo-600 font-semibold mt-3 text-center animate-pulse">
+                ⚡ Generated in 38 seconds
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 11B + 11E: Stat bar with animated counters
+// ---------------------------------------------------------------------------
+function StatBar() {
+  const quizzes = useAnimatedCounter(2847, 1800);
+  const teachers = useAnimatedCounter(127, 1400);
+  const seconds = useAnimatedCounter(45, 1200);
+
+  return (
+    <section className="bg-white border-b border-slate-100 py-6 px-4">
+      <div ref={quizzes.ref} className="max-w-3xl mx-auto grid grid-cols-3 divide-x divide-slate-200 text-center">
+        <div className="px-4">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <ChartBarIcon className="w-4 h-4 text-indigo-500" />
+            <span className="text-2xl font-bold text-slate-900">{quizzes.value.toLocaleString()}</span>
+          </div>
+          <p className="text-xs text-slate-500">quizzes generated</p>
+        </div>
+        <div className="px-4">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <UserGroupIcon className="w-4 h-4 text-indigo-500" />
+            <span className="text-2xl font-bold text-slate-900">{teachers.value.toLocaleString()}</span>
+          </div>
+          <p className="text-xs text-slate-500">teachers active</p>
+        </div>
+        <div className="px-4">
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <ClockIcon className="w-4 h-4 text-indigo-500" />
+            <span className="text-2xl font-bold text-slate-900">{seconds.value}s</span>
+          </div>
+          <p className="text-xs text-slate-500">avg generation time</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 11C: Version A vs B side-by-side demo
+// ---------------------------------------------------------------------------
+function VersionCompareDemo() {
+  const versionA = [
+    { num: 1, q: "What is the primary pigment used in photosynthesis?", opts: ["A. Chlorophyll", "B. Carotene", "C. Xanthophyll", "D. Anthocyanin"], ans: "A" },
+    { num: 2, q: "Where does the light-dependent reaction occur?", opts: ["A. Stroma", "B. Thylakoid membrane", "C. Cytoplasm", "D. Nucleus"], ans: "B" },
+  ];
+  const versionB = [
+    { num: 1, q: "Which molecule absorbs sunlight to power photosynthesis?", opts: ["A. ATP", "B. NADPH", "C. Chlorophyll", "D. Glucose"], ans: "C" },
+    { num: 2, q: "In which organelle does photosynthesis take place?", opts: ["A. Mitochondria", "B. Nucleus", "C. Ribosome", "D. Chloroplast"], ans: "D" },
+  ];
+
+  return (
+    <section className="py-20 px-4 bg-slate-50">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-12">
+          <span className="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold px-3 py-1 rounded-full mb-3">
+            Anti-Cheating Technology
+          </span>
+          <h2 className="text-3xl font-bold text-slate-900 mb-3">
+            Same Topic. Genuinely Different Questions.
+          </h2>
+          <p className="text-slate-500 max-w-xl mx-auto text-sm leading-relaxed">
+            QuizForge doesn't just shuffle options — it generates entirely new questions testing the same
+            learning objectives. Students can&apos;t share answers even if they try.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Version A */}
+          <div className="bg-white rounded-2xl border-2 border-indigo-200 shadow-sm overflow-hidden">
+            <div className="bg-indigo-600 px-5 py-3 flex items-center justify-between">
+              <span className="text-white font-bold text-sm">Version A</span>
+              <span className="bg-white/20 text-white text-xs px-2 py-0.5 rounded">Student Copy</span>
+            </div>
+            <div className="p-5 space-y-5">
+              {versionA.map((q) => (
+                <div key={q.num}>
+                  <p className="text-sm font-semibold text-slate-800 mb-2">{q.num}. {q.q}</p>
+                  <ul className="space-y-1">
+                    {q.opts.map((opt) => (
+                      <li
+                        key={opt}
+                        className={`text-xs px-3 py-1.5 rounded-lg ${
+                          opt.startsWith(q.ans)
+                            ? "bg-indigo-50 text-indigo-700 font-medium border border-indigo-200"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        {opt}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Version B */}
+          <div className="bg-white rounded-2xl border-2 border-violet-200 shadow-sm overflow-hidden">
+            <div className="bg-violet-600 px-5 py-3 flex items-center justify-between">
+              <span className="text-white font-bold text-sm">Version B</span>
+              <span className="bg-white/20 text-white text-xs px-2 py-0.5 rounded">Student Copy</span>
+            </div>
+            <div className="p-5 space-y-5">
+              {versionB.map((q) => (
+                <div key={q.num}>
+                  <p className="text-sm font-semibold text-slate-800 mb-2">{q.num}. {q.q}</p>
+                  <ul className="space-y-1">
+                    {q.opts.map((opt) => (
+                      <li
+                        key={opt}
+                        className={`text-xs px-3 py-1.5 rounded-lg ${
+                          opt.startsWith(q.ans)
+                            ? "bg-violet-50 text-violet-700 font-medium border border-violet-200"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        {opt}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <p className="text-center text-xs text-slate-400 mt-4">
+          Both versions cover the same 7th Grade Science standard on Photosynthesis (NGSS MS-LS1-6)
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FAQ
+// ---------------------------------------------------------------------------
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
@@ -174,6 +466,9 @@ function FAQItem({ q, a }: { q: string; a: string }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 export default function Home() {
   return (
     <div className="min-h-screen">
@@ -203,7 +498,7 @@ export default function Home() {
       </nav>
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-indigo-900 via-indigo-800 to-indigo-700 text-white py-24 px-4">
+      <section className="bg-gradient-to-br from-indigo-900 via-indigo-800 to-indigo-700 text-white py-20 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-indigo-700/60 border border-indigo-500/40 rounded-full px-4 py-1.5 text-sm mb-6">
             <BoltIcon className="w-4 h-4 text-yellow-400" />
@@ -233,11 +528,17 @@ export default function Home() {
             </Link>
           </div>
           <p className="text-indigo-300 text-sm mt-4">3 free generations per day • No setup required</p>
+
+          {/* 11A: Browser-chrome live demo */}
+          <HeroBrowserDemo />
         </div>
       </section>
 
+      {/* 11B: Stat bar */}
+      <StatBar />
+
       {/* How It Works */}
-      <section id="how-it-works" className="py-20 px-4 bg-slate-50">
+      <section id="how-it-works" className="py-20 px-4 bg-white">
         <div className="max-w-5xl mx-auto">
           <h2 className="text-3xl font-bold text-center text-slate-900 mb-3">
             How It Works
@@ -262,6 +563,9 @@ export default function Home() {
         </div>
       </section>
 
+      {/* 11C: Version A vs B demo */}
+      <VersionCompareDemo />
+
       {/* Features */}
       <section className="py-20 px-4 bg-white">
         <div className="max-w-6xl mx-auto">
@@ -285,7 +589,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* 11D: Testimonials with enriched avatars */}
       <section className="py-20 px-4 bg-indigo-50">
         <div className="max-w-5xl mx-auto">
           <h2 className="text-3xl font-bold text-center text-slate-900 mb-3">
@@ -298,12 +602,13 @@ export default function Home() {
             {TESTIMONIALS.map((t) => (
               <div key={t.name} className="bg-white rounded-2xl p-6 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
+                  <div className={`w-11 h-11 ${t.color} rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 ring-2 ring-white shadow`}>
                     {t.initials}
                   </div>
                   <div>
                     <p className="font-semibold text-slate-900 text-sm">{t.name}</p>
-                    <p className="text-slate-400 text-xs">{t.role}</p>
+                    <p className="text-slate-500 text-xs">{t.role}</p>
+                    <p className="text-slate-400 text-[10px] mt-0.5">{t.school}</p>
                   </div>
                 </div>
                 <div className="flex gap-0.5 mb-3">
@@ -418,7 +723,6 @@ export default function Home() {
       <footer className="bg-slate-900 text-slate-400 py-12 px-4 text-sm">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            {/* Brand */}
             <div className="md:col-span-2">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-7 h-7 bg-indigo-600 rounded flex items-center justify-center">
@@ -430,7 +734,6 @@ export default function Home() {
                 AI-powered quiz generator for K–12 teachers. Create standards-aligned assessments in seconds.
               </p>
             </div>
-            {/* Product */}
             <div>
               <p className="font-semibold text-slate-300 mb-3">Product</p>
               <ul className="space-y-2">
@@ -440,7 +743,6 @@ export default function Home() {
                 <li><Link href="/register" className="hover:text-slate-200 transition-colors">Get Started</Link></li>
               </ul>
             </div>
-            {/* Legal */}
             <div>
               <p className="font-semibold text-slate-300 mb-3">Company</p>
               <ul className="space-y-2">

@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional, List
-from datetime import date
+from datetime import datetime, timezone
 from app.models.generation import Generation, GenerationStatus
 
 
@@ -105,7 +105,7 @@ class GenerationRepository:
         )
 
     def count_today(self) -> int:
-        today = str(date.today())
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return (
             self.db.query(Generation)
             .filter(func.date(Generation.created_at) == today, Generation.is_deleted == False)

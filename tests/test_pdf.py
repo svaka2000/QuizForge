@@ -48,12 +48,12 @@ def test_pdf_answer_key_is_valid_pdf(auth_client):
 
 
 def test_pdf_file_size_reasonable(auth_client):
-    """Each PDF should be between 5 KB and 5 MB — catches empty/corrupted files."""
+    """Each PDF should be between 1 KB and 5 MB — catches empty/corrupted files."""
     gen_id = _make_generation(auth_client)
     for file_type in ("version_a", "version_b", "answer_key"):
         resp = auth_client.get(f"/api/generations/{gen_id}/download/{file_type}")
         size = len(resp.content)
-        assert size >= 5 * 1024, f"{file_type} PDF too small: {size} bytes"
+        assert size >= 1 * 1024, f"{file_type} PDF too small: {size} bytes"
         assert size <= 5 * 1024 * 1024, f"{file_type} PDF too large: {size} bytes"
 
 

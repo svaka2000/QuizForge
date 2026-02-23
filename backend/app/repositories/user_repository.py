@@ -37,7 +37,7 @@ class UserRepository:
         return user
 
     def get_generations_today(self, user_id: int) -> int:
-        today = str(date.today())
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return (
             self.db.query(Generation)
             .filter(

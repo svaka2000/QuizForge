@@ -178,17 +178,26 @@ def test_webhook_missing_signature(client):
 def test_webhook_invalid_signature(client):
     """Webhook with an invalid Stripe-Signature should return 400."""
     from app.core.config import settings
+    orig = settings.STRIPE_WEBHOOK_SECRET
     settings.STRIPE_WEBHOOK_SECRET = "whsec_test"
 
-    resp = client.post(
-        "/api/billing/webhook",
-        content=b'{"type": "test"}',
-        headers={
-            "Content-Type": "application/json",
-            "Stripe-Signature": "t=bad,v1=invalidsignature",
-        },
-    )
-    assert resp.status_code == 400
+    # Stripe raises ValueError on bad signatures
+    mock_stripe = MagicMock()
+    mock_stripe.Webhook.construct_event.side_effect = ValueError("Invalid signature")
+
+    try:
+        with patch("app.routers.billing._get_stripe", return_value=mock_stripe):
+            resp = client.post(
+                "/api/billing/webhook",
+                content=b'{"type": "test"}',
+                headers={
+                    "Content-Type": "application/json",
+                    "Stripe-Signature": "t=bad,v1=invalidsignature",
+                },
+            )
+        assert resp.status_code == 400
+    finally:
+        settings.STRIPE_WEBHOOK_SECRET = orig
 
 
 def test_webhook_no_secret_configured(client):
